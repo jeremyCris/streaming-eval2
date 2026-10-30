@@ -1,0 +1,59 @@
+=========================================================
+GUÍA DE INSTALACIÓN Y DESPLIEGUE LOCAL - EVALUACIÓN 2
+Proyecto: Plataforma Global de Streaming (Caso 8)
+=========================================================
+
+Esta guía detalla los pasos exactos para clonar, configurar y ejecutar 
+la aplicación (Backend y Frontend) desde cero.
+
+--- PASO 1: CLONAR EL REPOSITORIO ---
+Abra una terminal en su equipo y ejecute:
+1. git clone https://github.com/jeremyCris/streaming-eval2.git
+2. cd streaming-eval2
+
+--- PASO 2: PREPARAR LA BASE DE DATOS ---
+1. Abra pgAdmin (o su gestor de PostgreSQL preferido).
+2. Cree una base de datos nueva y completamente vacía llamada: streaming_db
+*Nota: No es necesario ejecutar ningún script SQL manual, el sistema creará las tablas automáticamente en el Paso 3.
+
+--- PASO 3: CONFIGURAR Y POBLAR EL BACKEND ---
+1. En la terminal, ingrese a la carpeta del servidor:
+   cd backend
+2. Instale las dependencias:
+   npm install
+3. Cree un archivo llamado exactamente .env dentro de la carpeta "backend" con las siguientes variables (reemplace "tu_contraseña_local" con la clave de su PostgreSQL):
+   PORT=3000
+   DB_USER=postgres
+   DB_PASSWORD=tu_contraseña_local
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=streaming_db
+   JWT_SECRET=secreto_super_seguro
+4. Ejecute el script Seeder para inicializar las tablas y poblar los datos de prueba automáticamente:
+   npm run seed
+
+--- PASO 4: INICIAR EL SISTEMA (Requiere 2 terminales) ---
+
+TERMINAL 1 (Backend):
+Asegúrese de estar en la carpeta "backend" y levante el servidor:
+1. npm start
+(Verá el mensaje de que el servidor está corriendo en el puerto 3000).
+
+TERMINAL 2 (Frontend):
+Abra una nueva pestaña de terminal, ubíquese en la raíz del proyecto (streaming-eval2) y ejecute:
+1. cd frontend
+2. npm install
+3. npm start
+(El navegador se abrirá automáticamente en http://localhost:3000 o 3001).
+
+--- PASO 5: CREDENCIALES DE PRUEBA ---
+El sistema cuenta con validación JWT y rutas protegidas por roles. 
+Utilice las siguientes credenciales generadas por el Seeder para probar las distintas vistas:
+
+- Perfil Administrador:
+  Correo: admin@streaming.cl
+  Clave: 123456
+
+- Perfil Suscriptor:
+  Correo: usuario@streaming.cl
+  Clave: 123456
