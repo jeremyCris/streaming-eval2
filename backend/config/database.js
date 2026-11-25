@@ -19,7 +19,6 @@ pool.on('error', (err) => {
     process.exit(-1);
 });
 
-// Exportamos un método para hacer consultas seguras
 module.exports = {
     query: (text, params) => pool.query(text, params),
 };

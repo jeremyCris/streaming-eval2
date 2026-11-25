@@ -1,4 +1,4 @@
-// controllers/authController.js
+
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const userRepository = require('../repositories/userRepository'); // Llamamos al repositorio

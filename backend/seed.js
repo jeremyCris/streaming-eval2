@@ -13,7 +13,6 @@ const pool = new Pool({
 async function poblarBaseDeDatos() {
     console.log('Iniciando sembrado de base de datos (Seeding)...');
     try {
-        // 1. Crear tabla de usuarios
         await pool.query(`
             CREATE TABLE IF NOT EXISTS usuarios (
                 id SERIAL PRIMARY KEY,
@@ -24,7 +23,6 @@ async function poblarBaseDeDatos() {
             );
         `);
 
-        // 2. Crear tabla de contenidos
         await pool.query(`
             CREATE TABLE IF NOT EXISTS contenidos (
                 id SERIAL PRIMARY KEY,
@@ -36,7 +34,6 @@ async function poblarBaseDeDatos() {
             );
         `);
 
-        // 3. Poblar Usuarios (encriptando la contraseña 123456)
         const resUsuarios = await pool.query('SELECT COUNT(*) FROM usuarios');
         if (parseInt(resUsuarios.rows[0].count) === 0) {
             const hashedPassword = await bcrypt.hash('123456', 10);
@@ -51,14 +48,14 @@ async function poblarBaseDeDatos() {
             console.log('⚡ La tabla usuarios ya tiene datos, se omitió la inserción.');
         }
 
-        // 4. Poblar Contenidos iniciales
+   
         const resContenidos = await pool.query('SELECT COUNT(*) FROM contenidos');
         if (parseInt(resContenidos.rows[0].count) === 0) {
             await pool.query(`
                 INSERT INTO contenidos (titulo, descripcion, categoria, url_imagen) 
                 VALUES 
-                ('Inception', 'Un ladrón que roba secretos corporativos a través del uso de la tecnología de intercambio de sueños.', 'Película', 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=500'),
-                ('Stranger Things', 'Un grupo de jóvenes en los 80 enfrenta fenómenos paranormales y experimentos secretos.', 'Serie', 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500');
+                ('Inception', 'Un ladrón que roba secretos corporativos a través del uso de la tecnología de intercambio de sueños.', 'Película', 'https://image.tmdb.org/t/p/w500/edv5CZvWj09upOsy2Y6IwDhK8bt.jpg'),
+                ('Stranger Things', 'Un grupo de jóvenes en los 80 enfrenta fenómenos paranormales y experimentos secretos.', 'Serie', 'https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg');
             `);
             console.log('✅ Contenidos iniciales agregados al catálogo.');
         } else {
