@@ -2,9 +2,18 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import { useNotificaciones } from './hooks/useNotificaciones';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+const API_URL = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:3000`;
 const BRAND_NAME = 'Streamly';
+
+const formatHora = (iso) => {
+    try {
+        return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+        return '';
+    }
+};
 
 const SubscriberView = () => {
     const navigate = useNavigate();
@@ -15,34 +24,66 @@ const SubscriberView = () => {
     const [busqueda, setBusqueda] = useState('');
     const [filtroTipo, setFiltroTipo] = useState('Todo'); // 'Todo' | 'Película' | 'Serie'
     const [seccionActiva, setSeccionActiva] = useState('Inicio');
-    const [miListaIds, setMiListaIds] = useState([]);
+    const [mostrarNotif, setMostrarNotif] = useState(false);
+    const [miListaIds, setMiListaIds] = useState(() => {
+        try {
+            const guardados = localStorage.getItem('streamly_mi_lista');
+            return guardados ? JSON.parse(guardados) : [];
+        } catch {
+            return [];
+        }
+    });
+
     const [itemSeleccionado, setItemSeleccionado] = useState(null);
     const [reproduciendo, setReproduciendo] = useState(false);
 
+    const {
+        notificaciones,
+        noLeidas,
+        marcarLeida,
+        marcarTodasLeidas,
+        limpiarNotificaciones,
+    } = useNotificaciones(items);
+
     const getImagen = (item) => item?.url_imagen || item?.imagen_url || item?.imagen || '';
 
-    const obtenerCatalogo = useCallback(async () => {
+    const obtenerCatalogo = useCallback(async (silencioso = false) => {
         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        setLoading(true);
-        setError('');
+        if (!silencioso) {
+            setLoading(true);
+            setError('');
+        }
         try {
             const res = await axios.get(`${API_URL}/api/contenidos`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             const lista = Array.isArray(res.data) ? res.data : res.data.data || [];
             setItems(lista);
+            setError('');
         } catch (err) {
             console.error('Error cargando catálogo desde API:', err);
-            setItems([]);
-            setError('No se pudo cargar el catálogo desde el servidor. Verifica que el backend esté activo.');
+            if (!silencioso) {
+                setItems([]);
+                setError('No se pudo cargar el catálogo desde el servidor. Verifica que el backend esté activo.');
+            }
         } finally {
-            setLoading(false);
+            if (!silencioso) {
+                setLoading(false);
+            }
         }
     }, []);
 
     useEffect(() => {
-        obtenerCatalogo();
+        obtenerCatalogo(false);
+        const intervalo = setInterval(() => {
+            obtenerCatalogo(true);
+        }, 10000);
+        return () => clearInterval(intervalo);
     }, [obtenerCatalogo]);
+
+    useEffect(() => {
+        localStorage.setItem('streamly_mi_lista', JSON.stringify(miListaIds));
+    }, [miListaIds]);
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -58,6 +99,7 @@ const SubscriberView = () => {
 
     const handleNavClick = (seccion) => {
         setSeccionActiva(seccion);
+        setMostrarNotif(false);
         if (seccion === 'Películas') {
             setFiltroTipo('Película');
         } else if (seccion === 'Series') {
@@ -107,6 +149,14 @@ const SubscriberView = () => {
         setReproduciendo(false);
     };
 
+    const handleClickNotificacion = (notif) => {
+        marcarLeida(notif.id);
+        setMostrarNotif(false);
+        if (notif.item) {
+            abrirDetalles(notif.item);
+        }
+    };
+
     const destacadoImg = getImagen(itemDestacado);
     const destacadoAccent = itemDestacado?.accent || '#141620';
 
@@ -153,17 +203,25 @@ const SubscriberView = () => {
                                     }}
                                 >
                                     {tab}
+                                    {tab === 'Mi lista' && miListaIds.length > 0 && (
+                                        <span
+                                            className="badge rounded-pill ms-2"
+                                            style={{ backgroundColor: '#6c47ff', fontSize: '0.7rem' }}
+                                        >
+                                            {miListaIds.length}
+                                        </span>
+                                    )}
                                 </button>
                             );
                         })}
                     </nav>
                 </div>
 
-                <div className="d-flex align-items-center gap-2 gap-sm-3">
-                    <div style={{ width: '210px' }}>
+                <div className="d-flex align-items-center gap-2 gap-sm-3 position-relative">
+                    <div className="position-relative" style={{ width: '210px' }}>
                         <input
                             type="text"
-                            className="form-control form-control-sm text-white rounded-3"
+                            className="form-control form-control-sm text-white rounded-3 pe-4"
                             style={{
                                 backgroundColor: '#181a24',
                                 border: '1px solid #282c3d',
@@ -173,11 +231,42 @@ const SubscriberView = () => {
                             value={busqueda}
                             onChange={(e) => setBusqueda(e.target.value)}
                         />
+                        {busqueda && (
+                            <button
+                                type="button"
+                                onClick={() => setBusqueda('')}
+                                aria-label="Limpiar búsqueda"
+                                className="btn btn-sm p-0 text-secondary position-absolute top-50 end-0 translate-middle-y me-2 border-0"
+                            >
+                                ×
+                            </button>
+                        )}
                     </div>
 
                     <button
                         type="button"
-                        onClick={obtenerCatalogo}
+                        onClick={() => setMostrarNotif((prev) => !prev)}
+                        className="btn btn-sm px-3 py-2 rounded-3 d-flex align-items-center gap-2"
+                        style={{
+                            backgroundColor: mostrarNotif ? '#241d45' : '#161822',
+                            border: '1px solid #282c3d',
+                            color: '#e5e7eb',
+                        }}
+                    >
+                        <span>Notificaciones</span>
+                        {noLeidas > 0 && (
+                            <span
+                                className="badge rounded-pill"
+                                style={{ backgroundColor: '#6c47ff', color: '#ffffff' }}
+                            >
+                                {noLeidas}
+                            </span>
+                        )}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => obtenerCatalogo(false)}
                         className="btn btn-sm px-3 py-2 rounded-3"
                         style={{
                             backgroundColor: '#161822',
@@ -200,6 +289,90 @@ const SubscriberView = () => {
                     >
                         Cerrar sesión
                     </button>
+
+                    {mostrarNotif && (
+                        <div
+                            className="rounded-4 p-3 text-white shadow-lg"
+                            style={{
+                                backgroundColor: '#12131a',
+                                border: '1px solid #282c3d',
+                                width: '340px',
+                                maxWidth: '92vw',
+                                position: 'absolute',
+                                top: '100%',
+                                right: 0,
+                                marginTop: '8px',
+                                zIndex: 1060,
+                            }}
+                        >
+                            <div
+                                className="d-flex justify-content-between align-items-center pb-2 mb-2"
+                                style={{ borderBottom: '1px solid #222638' }}
+                            >
+                                <span className="fw-semibold small">Nuevas publicaciones</span>
+                                <div className="d-flex gap-2">
+                                    {noLeidas > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={marcarTodasLeidas}
+                                            className="btn btn-link btn-sm p-0 text-decoration-none"
+                                            style={{ color: '#a78bfa' }}
+                                        >
+                                            Marcar leídas
+                                        </button>
+                                    )}
+                                    {notificaciones.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={limpiarNotificaciones}
+                                            className="btn btn-link btn-sm p-0 text-decoration-none text-secondary"
+                                        >
+                                            Limpiar
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {notificaciones.length === 0 ? (
+                                <p className="text-secondary small mb-0 py-3 text-center">
+                                    No hay notificaciones por ahora.
+                                </p>
+                            ) : (
+                                <div
+                                    className="d-flex flex-column gap-2"
+                                    style={{ maxHeight: '280px', overflowY: 'auto' }}
+                                >
+                                    {notificaciones.map((notif) => (
+                                        <div
+                                            key={notif.id}
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={() => handleClickNotificacion(notif)}
+                                            onKeyDown={(e) =>
+                                                e.key === 'Enter' && handleClickNotificacion(notif)
+                                            }
+                                            className="p-2 rounded-3"
+                                            style={{
+                                                backgroundColor: notif.leida ? '#171a22' : '#1e1a33',
+                                                border: '1px solid #282c3d',
+                                                cursor: 'pointer',
+                                            }}
+                                        >
+                                            <div className="d-flex justify-content-between align-items-center gap-2 mb-1">
+                                                <span className="fw-semibold small text-truncate">
+                                                    {notif.titulo}
+                                                </span>
+                                                <small className="text-secondary text-nowrap">
+                                                    {formatHora(notif.fecha)}
+                                                </small>
+                                            </div>
+                                            <p className="text-secondary small mb-0">{notif.mensaje}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </header>
 
@@ -290,9 +463,16 @@ const SubscriberView = () => {
 
                 {/* Encabezado del catálogo y filtros */}
                 <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-                    <h3 className="fw-bold mb-0">
-                        {seccionActiva === 'Mi lista' ? 'Mi lista' : 'Catálogo de transmisión'}
-                    </h3>
+                    <div className="d-flex align-items-center gap-3">
+                        <h3 className="fw-bold mb-0">
+                            {seccionActiva === 'Mi lista' ? 'Mi lista' : 'Catálogo de transmisión'}
+                        </h3>
+                        {!loading && (
+                            <span className="small text-secondary">
+                                ({itemsFiltrados.length} {itemsFiltrados.length === 1 ? 'título' : 'títulos'})
+                            </span>
+                        )}
+                    </div>
 
                     {seccionActiva !== 'Mi lista' && (
                         <div

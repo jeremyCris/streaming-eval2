@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+const API_URL = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:3000`;
 const BRAND_NAME = 'Streamly';
 
 const posterCards = [
@@ -17,8 +17,10 @@ const posterCards = [
 ];
 
 const LoginView = () => {
+    const [isRegisterMode, setIsRegisterMode] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [rememberSession, setRememberSession] = useState(true);
     const [error, setError] = useState('');
@@ -26,13 +28,33 @@ const LoginView = () => {
 
     const navigate = useNavigate();
 
-    const handleLogin = async (e) => {
+    const toggleMode = () => {
+        setIsRegisterMode((prev) => !prev);
+        setError('');
+        setPassword('');
+        setConfirmPassword('');
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+
+        if (isRegisterMode) {
+            if (password.length < 6) {
+                setError('La contraseña debe tener al menos 6 caracteres.');
+                return;
+            }
+            if (password !== confirmPassword) {
+                setError('Las contraseñas no coinciden.');
+                return;
+            }
+        }
+
         setLoading(true);
 
         try {
-            const response = await axios.post(`${API_URL}/api/login`, {
+            const endpoint = isRegisterMode ? '/api/register' : '/api/login';
+            const response = await axios.post(`${API_URL}${endpoint}`, {
                 email,
                 password
             });
@@ -50,7 +72,13 @@ const LoginView = () => {
                 navigate('/suscriptor');
             }
         } catch (err) {
-            setError('Credenciales inválidas. Inténtalo de nuevo.');
+            if (err.response?.data?.error) {
+                setError(err.response.data.error);
+            } else if (isRegisterMode) {
+                setError('No se pudo crear la cuenta. Inténtalo nuevamente.');
+            } else {
+                setError('Credenciales inválidas. Inténtalo de nuevo.');
+            }
         } finally {
             setLoading(false);
         }
@@ -72,13 +100,21 @@ const LoginView = () => {
                             className="d-inline-flex align-items-center justify-content-center rounded-3"
                             style={{ width: '34px', height: '34px', backgroundColor: '#6c47ff' }}
                         >
-                            ▶
+                            <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="white"
+                                xmlns="http://www.w3.org/2000/svg"
+                            >
+                                <path d="M8 5v14l11-7z" />
+                            </svg>
                         </span>
                         <span className="fw-bold fs-5">{BRAND_NAME}</span>
                     </div>
 
                     {/* Tarjetas inclinadas */}
-                    <div className="position-absolute top-0 start-0 w-100 h-100" style={{ opacity: 0.85 }}>
+                    <div className="position-absolute top-15 start-0 w-100 h-100" style={{ opacity: 0.35 }}>
                         {posterCards.map((card, idx) => (
                             <div
                                 key={idx}
@@ -118,9 +154,13 @@ const LoginView = () => {
                             <span className="fw-bold fs-5">{BRAND_NAME}</span>
                         </div>
 
-                        <h3 className="fw-bold mb-1">Bienvenido de vuelta</h3>
+                        <h3 className="fw-bold mb-1">
+                            {isRegisterMode ? 'Crea tu cuenta' : 'Bienvenido de vuelta'}
+                        </h3>
                         <p className="text-secondary small mb-4">
-                            Ingresa a tu cuenta de {BRAND_NAME} para continuar.
+                            {isRegisterMode
+                                ? `Regístrate gratis en ${BRAND_NAME} como suscriptor.`
+                                : `Ingresa a tu cuenta de ${BRAND_NAME} para continuar.`}
                         </p>
 
                         {error && (
@@ -129,7 +169,7 @@ const LoginView = () => {
                             </div>
                         )}
 
-                        <form onSubmit={handleLogin}>
+                        <form onSubmit={handleSubmit}>
                             <div className="mb-3">
                                 <label className="form-label small text-light">Correo electrónico</label>
                                 <input
@@ -146,16 +186,18 @@ const LoginView = () => {
                             <div className="mb-3">
                                 <div className="d-flex justify-content-between align-items-center mb-1">
                                     <label className="form-label small text-light mb-0">Contraseña</label>
-                                    <span className="small text-secondary" style={{ cursor: 'default' }}>
-                                        ¿Olvidaste tu contraseña?
-                                    </span>
+                                    {!isRegisterMode && (
+                                        <span className="small text-secondary" style={{ cursor: 'default' }}>
+                                            ¿Olvidaste tu contraseña?
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="input-group">
                                     <input
                                         type={showPassword ? 'text' : 'password'}
                                         className="form-control text-white border-secondary"
                                         style={{ backgroundColor: '#000000' }}
-                                        placeholder="Tu contraseña"
+                                        placeholder={isRegisterMode ? 'Mínimo 6 caracteres' : 'Tu contraseña'}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         required
@@ -171,6 +213,21 @@ const LoginView = () => {
                                     </button>
                                 </div>
                             </div>
+
+                            {isRegisterMode && (
+                                <div className="mb-3">
+                                    <label className="form-label small text-light">Confirmar contraseña</label>
+                                    <input
+                                        type={showPassword ? 'text' : 'password'}
+                                        className="form-control text-white border-secondary"
+                                        style={{ backgroundColor: '#000000' }}
+                                        placeholder="Repite tu contraseña"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            )}
 
                             <div className="form-check mb-4">
                                 <input
@@ -191,7 +248,13 @@ const LoginView = () => {
                                 style={{ backgroundColor: '#6c47ff', borderColor: '#6c47ff' }}
                                 disabled={loading}
                             >
-                                {loading ? 'Ingresando...' : 'Ingresar'}
+                                {loading
+                                    ? isRegisterMode
+                                        ? 'Creando cuenta...'
+                                        : 'Ingresando...'
+                                    : isRegisterMode
+                                    ? 'Registrarse'
+                                    : 'Ingresar'}
                             </button>
                         </form>
 
@@ -225,10 +288,16 @@ const LoginView = () => {
                         </div>
 
                         <p className="text-center text-secondary small mb-0">
-                            ¿Nuevo en {BRAND_NAME}?{' '}
-                            <span className="fw-semibold" style={{ color: '#8b6eff' }}>
-                                Crea tu cuenta
-                            </span>
+                            {isRegisterMode ? '¿Ya tienes cuenta en ' : '¿Nuevo en '}
+                            {BRAND_NAME}?{' '}
+                            <button
+                                type="button"
+                                onClick={toggleMode}
+                                className="btn btn-link p-0 fw-semibold text-decoration-none align-baseline"
+                                style={{ color: '#8b6eff' }}
+                            >
+                                {isRegisterMode ? 'Inicia sesión' : 'Crea tu cuenta'}
+                            </button>
                         </p>
                     </div>
                 </div>

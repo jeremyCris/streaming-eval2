@@ -1,0 +1,32 @@
+const jwt = require('jsonwebtoken');
+require('dotenv').config();
+
+const verificarToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Formato: "Bearer <token>"
+
+  if (!token) {
+    return res.status(401).json({ error: 'Acceso denegado: token no proporcionado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // { id, rol }
+    next();
+  } catch (error) {
+    return res.status(403).json({ error: 'Token inválido o expirado' });
+  }
+};
+
+const soloAdmin = (req, res, next) => {
+  const rolesPermitidos = ['Administrador', 'admin'];
+  if (!req.user || !rolesPermitidos.includes(req.user.rol)) {
+    return res.status(403).json({ error: 'Acceso denegado: se requiere rol administrador' });
+  }
+  next();
+};
+
+module.exports = {
+  verificarToken,
+  soloAdmin
+};

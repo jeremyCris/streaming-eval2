@@ -1,4 +1,5 @@
 const ContentRepository = require('../repositories/contentRepository');
+const { buscarEnTmdb } = require('../services/tmdbService');
 
 const getAll = async (req, res) => {
     try {
@@ -12,17 +13,39 @@ const getAll = async (req, res) => {
 
 const create = async (req, res) => {
     try {
-        const { titulo, descripcion, categoria, url_imagen, imagen_url } = req.body;
-        const imagenFinal = url_imagen ?? imagen_url;
+        const { titulo, descripcion, categoria, url_imagen, imagen_url, autocompletar = true } = req.body;
+        const imagenInicial = url_imagen ?? imagen_url;
 
-        if (!titulo) {
+        if (!titulo || !String(titulo).trim()) {
             return res.status(400).json({ error: 'El título es obligatorio' });
         }
 
+        let extra = {};
+        if (autocompletar) {
+            const { results } = await buscarEnTmdb(String(titulo).trim());
+            if (results && results.length > 0) {
+                extra = results[0];
+            }
+        }
+
+        const tituloFinal = String(titulo).trim().slice(0, 150);
+        const descripcionFinal =
+            descripcion && String(descripcion).trim()
+                ? String(descripcion).trim()
+                : extra.descripcion || undefined;
+        const categoriaFinal =
+            categoria && String(categoria).trim()
+                ? String(categoria).trim()
+                : extra.categoria || undefined;
+        const imagenFinal =
+            imagenInicial && String(imagenInicial).trim()
+                ? String(imagenInicial).trim()
+                : extra.url_imagen || undefined;
+
         const nuevoContenido = await ContentRepository.createContent(
-            titulo,
-            descripcion,
-            categoria,
+            tituloFinal,
+            descripcionFinal,
+            categoriaFinal,
             imagenFinal
         );
         res.status(201).json(nuevoContenido);

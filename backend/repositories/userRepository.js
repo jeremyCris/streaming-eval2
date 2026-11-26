@@ -1,21 +1,22 @@
-// repositories/userRepository.js
 const db = require('../config/database');
 
-// Función que busca un usuario por su correo de forma segura
 const findUserByEmail = async (email) => {
-    // Usamos $1 para evitar inyección SQL 
-    const queryText = 'SELECT id, email, password_hash, rol FROM usuarios WHERE email = $1';
-    const values = [email];
-    
-    try {
-        const result = await db.query(queryText, values);
-        return result.rows[0]; // Retorna el usuario si existe, o undefined si no
-    } catch (error) {
-        console.error('Error ejecutando findUserByEmail:', error);
-        throw error;
-    }
+  const queryText = 'SELECT id, email, password_hash, rol FROM usuarios WHERE email = $1';
+  const result = await db.query(queryText, [email]);
+  return result.rows[0];
+};
+
+const createUser = async (email, passwordHash, rol = 'Suscriptor') => {
+  const queryText = `
+    INSERT INTO usuarios (email, password_hash, rol)
+    VALUES ($1, $2, $3)
+    RETURNING id, email, rol
+  `;
+  const result = await db.query(queryText, [email, passwordHash, rol]);
+  return result.rows[0];
 };
 
 module.exports = {
-    findUserByEmail
+  findUserByEmail,
+  createUser
 };

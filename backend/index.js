@@ -4,6 +4,8 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
 const contentRoutes = require('./routes/contentRoutes');
+// Debajo de: const contentRoutes = require('./routes/contentRoutes');
+const { buscarEnTmdb } = require('./services/tmdbService');
 
 const app = express();
 
@@ -13,6 +15,14 @@ app.use(express.json());
 // Rutas de la API
 app.use('/api', authRoutes);
 app.use('/api/contenidos', contentRoutes);
+app.get('/api/externo/buscar', async (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) {
+    return res.status(400).json({ error: "Debes enviar el parámetro 'q'" });
+  }
+  const data = await buscarEnTmdb(q);
+  return res.json(data);
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
