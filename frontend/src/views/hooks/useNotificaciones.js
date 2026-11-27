@@ -1,4 +1,4 @@
-// src/hooks/useNotificaciones.js (o src/components/hooks/useNotificaciones.js)
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 
 const LEIDAS_KEY = 'streamly_notifs_leidas';

@@ -4,7 +4,6 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
 const contentRoutes = require('./routes/contentRoutes');
-// Debajo de: const contentRoutes = require('./routes/contentRoutes');
 const { buscarEnTmdb } = require('./services/tmdbService');
 
 const app = express();
@@ -12,7 +11,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Rutas de la API
 app.use('/api', authRoutes);
 app.use('/api/contenidos', contentRoutes);
 app.get('/api/externo/buscar', async (req, res) => {

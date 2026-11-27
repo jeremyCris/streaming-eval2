@@ -2,11 +2,22 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { useNotificaciones } from './hooks/useNotificaciones';
 
 const API_URL = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:3000`;
 const BRAND_NAME = 'Streamly';
 const CATEGORIAS = ['Película', 'Serie', 'Documental', 'Anime'];
+const GENEROS = [
+    'Acción',
+    'Terror',
+    'Ciencia ficción',
+    'Comedia',
+    'Drama',
+    'Suspenso',
+    'Animación',
+    'Documental',
+    'Romance',
+    'Fantasía',
+];
 
 const POSTER_STYLES = [
     { bg: '#2B3140', color: '#B4BAC6' },
@@ -38,7 +49,6 @@ const ICON_PATHS = {
     search: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></>,
     close: <path d="M6 6l12 12M18 6L6 18" />,
     image: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></>,
-    bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></>,
 };
 
 const Icon = ({ name, size = 18 }) => (
@@ -106,31 +116,16 @@ const panelStyle = {
     borderColor: '#232733',
 };
 
-const formatHora = (iso) => {
-    try {
-        return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch {
-        return '';
-    }
-};
-
 const AdminView = () => {
     const navigate = useNavigate();
 
-    const {
-        notificaciones,
-        noLeidas,
-        agregarNotificacion,
-        marcarLeida,
-        marcarTodasLeidas,
-        limpiarNotificaciones,
-    } = useNotificaciones();
-
-    const [mostrarNotif, setMostrarNotif] = useState(false);
+    const [catalogo, setCatalogo] = useState([]);
+    const [cargandoCatalogo, setCargandoCatalogo] = useState(false);
     const [activeTab, setActiveTab] = useState('catalogo');
 
     const [titulo, setTitulo] = useState('');
     const [categoria, setCategoria] = useState('Película');
+    const [genero, setGenero] = useState('Acción');
     const [imagenUrl, setImagenUrl] = useState('');
     const [descripcion, setDescripcion] = useState('');
 
@@ -140,6 +135,7 @@ const AdminView = () => {
     const [editandoItem, setEditandoItem] = useState(null);
     const [editTitulo, setEditTitulo] = useState('');
     const [editCategoria, setEditCategoria] = useState('Película');
+    const [editGenero, setEditGenero] = useState('Acción');
     const [editImagenUrl, setEditImagenUrl] = useState('');
     const [editDescripcion, setEditDescripcion] = useState('');
     const [guardandoEdicion, setGuardandoEdicion] = useState(false);
@@ -149,8 +145,6 @@ const AdminView = () => {
 
     const [loading, setLoading] = useState(false);
     const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
-    const [catalogo, setCatalogo] = useState([]);
-    const [cargandoCatalogo, setCargandoCatalogo] = useState(false);
     const [imgError, setImgError] = useState(false);
 
     const getAuthHeaders = () => {
@@ -172,13 +166,13 @@ const AdminView = () => {
 
     const cambiarTab = (tab) => {
         setMensaje({ tipo: '', texto: '' });
-        setMostrarNotif(false);
         setActiveTab(tab);
     };
 
     const handleLimpiar = () => {
         setTitulo('');
         setCategoria('Película');
+        setGenero('Acción');
         setImagenUrl('');
         setDescripcion('');
         setImgError(false);
@@ -207,6 +201,11 @@ const AdminView = () => {
         }
     };
 
+    useEffect(() => {
+        cargarCatalogo();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const handleEliminar = async () => {
         if (!eliminandoItem) return;
         const id = getItemId(eliminandoItem);
@@ -231,6 +230,7 @@ const AdminView = () => {
         setEditandoItem(item);
         setEditTitulo(item.titulo || '');
         setEditCategoria(item.categoria || 'Película');
+        setEditGenero(item.genero || 'Acción');
         setEditImagenUrl(item.url_imagen || item.imagen_url || item.imagen || '');
         setEditDescripcion(item.descripcion || '');
     };
@@ -248,6 +248,7 @@ const AdminView = () => {
             const payload = {
                 titulo: editTitulo,
                 categoria: editCategoria,
+                genero: editGenero,
                 url_imagen: urlLimpia,
                 imagen_url: urlLimpia,
                 descripcion: editDescripcion,
@@ -272,18 +273,19 @@ const AdminView = () => {
         }
     };
 
-const handlePublicar = async (e) => {
+    const handlePublicar = async (e) => {
         e.preventDefault();
         setMensaje({ tipo: '', texto: '' });
         setLoading(true);
 
         try {
             const urlLimpia = imagenUrl.trim();
-            const res = await axios.post(
+            await axios.post(
                 `${API_URL}/api/contenidos`,
                 {
                     titulo,
                     categoria,
+                    genero,
                     url_imagen: urlLimpia,
                     imagen_url: urlLimpia,
                     descripcion,
@@ -291,35 +293,24 @@ const handlePublicar = async (e) => {
                 getAuthHeaders()
             );
 
-            try {
-                const creado = res?.data?.data || res?.data || {};
-                const tituloPublicado = creado.titulo || titulo;
-                const categoriaPublicada = creado.categoria || categoria;
-
-                agregarNotificacion({
-                    titulo: tituloPublicado,
-                    categoria: categoriaPublicada,
-                    mensaje: `Se publicó «${tituloPublicado}» (${categoriaPublicada}) en el catálogo.`,
-                    tipo: 'publicacion',
-                });
-            } catch (notifErr) {
-                console.error('Error al registrar notificación local:', notifErr);
-            }
-
+            await cargarCatalogo();
             setMensaje({ tipo: 'success', texto: 'Contenido publicado correctamente en el catálogo.' });
             setTitulo('');
             setCategoria('Película');
+            setGenero('Acción');
             setImagenUrl('');
             setDescripcion('');
             setImgError(false);
         } catch (err) {
             console.error('Error al publicar contenido:', err);
+            const esForbidden = err.response?.status === 403;
             setMensaje({
                 tipo: 'danger',
-                texto:
-                    err.response?.data?.error ||
-                    err.response?.data?.message ||
-                    'No se pudo publicar el contenido. Revisa la conexión o el token.',
+                texto: esForbidden
+                    ? 'Acceso denegado (403): verifica que tu sesión tenga rol de Administrador.'
+                    : err.response?.data?.error ||
+                      err.response?.data?.message ||
+                      'No se pudo publicar el contenido. Revisa la conexión o el token.',
             });
         } finally {
             setLoading(false);
@@ -354,10 +345,11 @@ const handlePublicar = async (e) => {
     const catalogoFiltrado = useMemo(() => {
         return catalogo.filter((item) => {
             const t = (item.titulo || '').toLowerCase();
+            const g = (item.genero || '').toLowerCase();
             const c = item.categoria || 'Película';
             const q = busqueda.trim().toLowerCase();
 
-            const coincideTexto = !q || t.includes(q);
+            const coincideTexto = !q || t.includes(q) || g.includes(q);
             if (filtroTipo === 'Todo') return coincideTexto;
             return coincideTexto && c === filtroTipo;
         });
@@ -443,115 +435,19 @@ const handlePublicar = async (e) => {
                         </p>
                     </div>
 
-                    <div className="d-flex align-items-center gap-2 position-relative">
-                        <button
-                            type="button"
-                            onClick={() => setMostrarNotif((prev) => !prev)}
-                            className="btn d-flex align-items-center gap-2 px-3 py-2 rounded-3"
-                            style={{
-                                backgroundColor: mostrarNotif ? '#241D45' : '#171A22',
-                                borderColor: '#2A2F3B',
-                                color: '#F2F3F5',
-                            }}
-                        >
-                            <Icon name="bell" />
-                            <span>Notificaciones</span>
-                            {noLeidas > 0 && (
-                                <span
-                                    className="badge rounded-pill"
-                                    style={{ backgroundColor: '#6A46FF', color: '#FFFFFF' }}
-                                >
-                                    {noLeidas}
-                                </span>
-                            )}
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={handleLogout}
-                            className="btn d-flex align-items-center gap-2 px-3 py-2 rounded-3"
-                            style={{
-                                backgroundColor: 'transparent',
-                                borderColor: '#5A2A33',
-                                color: '#FF9A9A',
-                            }}
-                        >
-                            <Icon name="logout" />
-                            <span>Cerrar sesión</span>
-                        </button>
-
-                        {mostrarNotif && (
-                            <div
-                                className="card rounded-4 p-3 text-light shadow-lg"
-                                style={{
-                                    ...panelStyle,
-                                    border: '1px solid #2A2F3B',
-                                    width: '340px',
-                                    maxWidth: '92vw',
-                                    position: 'absolute',
-                                    top: '100%',
-                                    right: 0,
-                                    marginTop: '8px',
-                                    zIndex: 1050,
-                                }}
-                            >
-                                <div className="d-flex align-items-center justify-content-between pb-2 mb-2" style={{ borderBottom: '1px solid #232733' }}>
-                                    <span className="fw-semibold small">Notificaciones de publicación</span>
-                                    <div className="d-flex gap-2">
-                                        {noLeidas > 0 && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-link btn-sm p-0 text-decoration-none"
-                                                style={{ color: '#D9D2FF' }}
-                                                onClick={marcarTodasLeidas}
-                                            >
-                                                Marcar leídas
-                                            </button>
-                                        )}
-                                        {notificaciones.length > 0 && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-link btn-sm p-0 text-decoration-none text-secondary"
-                                                onClick={limpiarNotificaciones}
-                                            >
-                                                Limpiar
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {notificaciones.length === 0 ? (
-                                    <p className="text-secondary small mb-0 py-3 text-center">
-                                        Aún no hay publicaciones registradas.
-                                    </p>
-                                ) : (
-                                    <div className="d-flex flex-column gap-2" style={{ maxHeight: '280px', overflowY: 'auto' }}>
-                                        {notificaciones.map((n) => (
-                                            <div
-                                                key={n.id}
-                                                role="button"
-                                                tabIndex={0}
-                                                onClick={() => marcarLeida(n.id)}
-                                                onKeyDown={(e) => e.key === 'Enter' && marcarLeida(n.id)}
-                                                className="p-2 rounded-3"
-                                                style={{
-                                                    backgroundColor: n.leida ? '#171A22' : '#1E1A33',
-                                                    border: '1px solid #2A2F3B',
-                                                    cursor: 'pointer',
-                                                }}
-                                            >
-                                                <div className="d-flex justify-content-between align-items-center gap-2 mb-1">
-                                                    <span className="fw-semibold small text-truncate">{n.titulo}</span>
-                                                    <small className="text-secondary text-nowrap">{formatHora(n.fecha)}</small>
-                                                </div>
-                                                <p className="text-secondary small mb-0">{n.mensaje}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="btn d-flex align-items-center gap-2 px-3 py-2 rounded-3"
+                        style={{
+                            backgroundColor: 'transparent',
+                            borderColor: '#5A2A33',
+                            color: '#FF9A9A',
+                        }}
+                    >
+                        <Icon name="logout" />
+                        <span>Cerrar sesión</span>
+                    </button>
                 </header>
 
                 {mensaje.texto && (
@@ -586,19 +482,36 @@ const handlePublicar = async (e) => {
                                         />
                                     </div>
 
-                                    <div className="mb-3">
-                                        <label className="form-label" htmlFor="categoria">Categoría</label>
-                                        <select
-                                            id="categoria"
-                                            className="form-select rounded-3 py-2 px-3"
-                                            style={inputDarkStyle}
-                                            value={categoria}
-                                            onChange={(e) => setCategoria(e.target.value)}
-                                        >
-                                            {CATEGORIAS.map((c) => (
-                                                <option key={c} value={c}>{c}</option>
-                                            ))}
-                                        </select>
+                                    <div className="row g-3 mb-3">
+                                        <div className="col-12 col-sm-6">
+                                            <label className="form-label" htmlFor="categoria">Categoría</label>
+                                            <select
+                                                id="categoria"
+                                                className="form-select rounded-3 py-2 px-3"
+                                                style={inputDarkStyle}
+                                                value={categoria}
+                                                onChange={(e) => setCategoria(e.target.value)}
+                                            >
+                                                {CATEGORIAS.map((c) => (
+                                                    <option key={c} value={c}>{c}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="col-12 col-sm-6">
+                                            <label className="form-label" htmlFor="genero">Género</label>
+                                            <select
+                                                id="genero"
+                                                className="form-select rounded-3 py-2 px-3"
+                                                style={inputDarkStyle}
+                                                value={genero}
+                                                onChange={(e) => setGenero(e.target.value)}
+                                            >
+                                                {GENEROS.map((g) => (
+                                                    <option key={g} value={g}>{g}</option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </div>
 
                                     <div className="mb-3">
@@ -686,12 +599,20 @@ const handlePublicar = async (e) => {
                                 </div>
 
                                 <div>
-                                    <span
-                                        className="badge rounded-pill px-3 py-2 mb-2"
-                                        style={{ backgroundColor: badgeDe(categoria).bg, color: badgeDe(categoria).color }}
-                                    >
-                                        {categoria}
-                                    </span>
+                                    <div className="d-flex flex-wrap gap-2 mb-2">
+                                        <span
+                                            className="badge rounded-pill px-3 py-2"
+                                            style={{ backgroundColor: badgeDe(categoria).bg, color: badgeDe(categoria).color }}
+                                        >
+                                            {categoria}
+                                        </span>
+                                        <span
+                                            className="badge rounded-pill px-3 py-2"
+                                            style={{ backgroundColor: '#1A1D27', color: '#D6D9E0' }}
+                                        >
+                                            {genero}
+                                        </span>
+                                    </div>
                                     <h3 className="h5 fw-semibold mt-1 mb-1">
                                         {titulo.trim() || 'Título del contenido'}
                                     </h3>
@@ -729,7 +650,7 @@ const handlePublicar = async (e) => {
                                         className="form-control rounded-3 ps-5"
                                         style={inputDarkStyle}
                                         aria-label="Buscar contenido"
-                                        placeholder="Buscar título"
+                                        placeholder="Buscar título o género"
                                         value={busqueda}
                                         onChange={(e) => setBusqueda(e.target.value)}
                                     />
@@ -789,12 +710,22 @@ const handlePublicar = async (e) => {
                                                 <div className="card-body d-flex gap-3 p-3">
                                                     <Poster item={item} />
                                                     <div className="min-w-0 flex-grow-1">
-                                                        <span
-                                                            className="badge rounded-pill px-2 py-1 mb-1"
-                                                            style={{ backgroundColor: badge.bg, color: badge.color }}
-                                                        >
-                                                            {item.categoria || 'Película'}
-                                                        </span>
+                                                        <div className="d-flex flex-wrap gap-1 mb-1">
+                                                            <span
+                                                                className="badge rounded-pill px-2 py-1"
+                                                                style={{ backgroundColor: badge.bg, color: badge.color }}
+                                                            >
+                                                                {item.categoria || 'Película'}
+                                                            </span>
+                                                            {item.genero && (
+                                                                <span
+                                                                    className="badge rounded-pill px-2 py-1"
+                                                                    style={{ backgroundColor: '#1A1D27', color: '#B4BAC6' }}
+                                                                >
+                                                                    {item.genero}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <h3 className="h6 fw-semibold text-truncate mt-1 mb-1">
                                                             {item.titulo}
                                                         </h3>
@@ -887,19 +818,36 @@ const handlePublicar = async (e) => {
                                         />
                                     </div>
 
-                                    <div className="mb-3">
-                                        <label className="form-label" htmlFor="e-cat">Categoría</label>
-                                        <select
-                                            id="e-cat"
-                                            className="form-select rounded-3"
-                                            style={inputDarkStyle}
-                                            value={editCategoria}
-                                            onChange={(e) => setEditCategoria(e.target.value)}
-                                        >
-                                            {CATEGORIAS.map((c) => (
-                                                <option key={c} value={c}>{c}</option>
-                                            ))}
-                                        </select>
+                                    <div className="row g-3 mb-3">
+                                        <div className="col-12 col-sm-6">
+                                            <label className="form-label" htmlFor="e-cat">Categoría</label>
+                                            <select
+                                                id="e-cat"
+                                                className="form-select rounded-3"
+                                                style={inputDarkStyle}
+                                                value={editCategoria}
+                                                onChange={(e) => setEditCategoria(e.target.value)}
+                                            >
+                                                {CATEGORIAS.map((c) => (
+                                                    <option key={c} value={c}>{c}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="col-12 col-sm-6">
+                                            <label className="form-label" htmlFor="e-genero">Género</label>
+                                            <select
+                                                id="e-genero"
+                                                className="form-select rounded-3"
+                                                style={inputDarkStyle}
+                                                value={editGenero}
+                                                onChange={(e) => setEditGenero(e.target.value)}
+                                            >
+                                                {GENEROS.map((g) => (
+                                                    <option key={g} value={g}>{g}</option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </div>
 
                                     <div className="mb-3">

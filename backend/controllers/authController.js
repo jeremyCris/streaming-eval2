@@ -1,10 +1,9 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const userRepository = require('../repositories/userRepository'); // Llamamos al repositorio
+const userRepository = require('../repositories/userRepository'); 
 require('dotenv').config();
 
 const login = async (req, res) => {
-    // 1. Recibimos el correo y contraseña que envía React
     const { email, password } = req.body;
 
     try {
@@ -12,29 +11,25 @@ const login = async (req, res) => {
             return res.status(400).json({ error: 'Faltan credenciales' });
         }
 
-        // 2. Buscamos al usuario en la BD usando el Patrón Repositorio
         const user = await userRepository.findUserByEmail(email);
         
-        // Si no existe, devolvemos error genérico por seguridad
         if (!user) {
             return res.status(401).json({ error: 'Credenciales inválidas' }); 
         }
 
-        // 3. Comparamos la contraseña en texto plano con el hash encriptado de la BD
         const isMatch = await bcrypt.compare(password, user.password_hash);
         
         if (!isMatch) {
             return res.status(401).json({ error: 'Credenciales inválidas' });
         }
 
-        // 4. Si la contraseña es correcta, generamos el Token JWT
+        // Si la contraseña es correcta, generamos el Token JWT
         const token = jwt.sign(
-            { id: user.id, rol: user.rol }, // Guardamos el rol dentro del token
+            { id: user.id, rol: user.rol }, 
             process.env.JWT_SECRET,
             { expiresIn: '1h' } // El token expira en 1 hora
         );
 
-        // 5. Enviamos el token de vuelta al frontend
         res.json({
             message: 'Login exitoso',
             token: token,
@@ -67,7 +62,6 @@ const register = async (req, res) => {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Por seguridad, todo registro público nace como suscriptor
     const newUser = await userRepository.createUser(email, passwordHash, 'Suscriptor');
 
     const token = jwt.sign(
